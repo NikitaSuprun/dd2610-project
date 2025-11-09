@@ -1,0 +1,63 @@
+[project]
+name = "flow-matching"
+version = "0.0.1"
+description = "Flow Matching for One-Step Generative Modeling"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Nikita Suprun", email = "suprun@kth.se"},
+    {name = "Fredrik Nguyen", email = "fnguyen@kth.se"},
+    {name = "Sirui Li", email = "siruil@kth.se"},
+]
+keywords = ["flow-matching", "one-step-generative-modeling"]
+dependencies = [
+    "torch",
+    "numpy",
+    "timm",
+]
+
+[tool.uv.sources]
+torch = { index = "torch-gpu" }
+
+[[tool.uv.index]]
+name = "torch-gpu"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+# Development tooling (installed in the dev environment only)
+[tool.uv]
+dev-dependencies = [
+    "pre-commit",
+    "ruff>=0.5",
+    "isort>=5.13",
+    "mdformat>=0.7",
+    "mdformat-gfm>=0.3",
+    "mdformat-frontmatter>=2.0",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E731", "E501"]  # Ignore lambda assignment + long lines;
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
+
+[tool.isort]
+profile = "black"
+line_length = 88
+combine_as_imports = true
+force_sort_within_sections = true
+known_first_party = ["flow-matching"]
+
+[tool.mdformat]
+number = false
+wrap = 88
+end-of-line = "lf"
