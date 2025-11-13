@@ -60,7 +60,6 @@ class MeanFlow:
             n_per_class: Number of samples per class
             classes: List of class indices to generate (default: all classes)
             sample_steps: Number of sampling steps
-            device: Device to run on (default: 'cuda')
 
         Returns:
             Generated images (N, C, H, W) in [0, 1] range

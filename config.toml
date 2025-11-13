@@ -15,6 +15,21 @@ c = 1.0
 sample_ratio = 0.5
 sampler_type = "uniform"
 
+# Training intervals
+log_step = 500                # Log metrics every N steps
+sample_step = 5000            # Generate samples every N steps
+checkpoint_step = 5000        # Save checkpoint every N steps
+histogram_step = 2000         # Log histograms every N steps
+
+# Training settings
+mixed_precision = "fp16"      # Mixed precision mode: fp16, bf16, or no
+jvp_use_autograd = false      # Use autograd for JVP (true) or funtorch (false)
+
+# Sampling settings
+n_samples_per_class = 1       # Number of samples per class during evaluation
+sampling_steps = 5            # Number of steps for sample generation
+sample_grid_nrow = 10         # Number of columns in sample image grid
+
 [training.sample_params]
 low = 0.0
 high = 1.0

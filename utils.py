@@ -21,6 +21,15 @@ class TrainingConfig:
     sample_ratio: float
     sampler_type: str
     sample_params: dict
+    log_step: int
+    sample_step: int
+    checkpoint_step: int
+    histogram_step: int
+    mixed_precision: str
+    jvp_use_autograd: bool
+    n_samples_per_class: int
+    sampling_steps: int
+    sample_grid_nrow: int
 
 
 @dataclass
@@ -56,6 +65,15 @@ class Config:
             sample_ratio=training_data.get("sample_ratio", 0.5),
             sampler_type=training_data.get("sampler_type", "uniform"),
             sample_params=training_data.get("sample_params", {}),
+            log_step=training_data.get("log_step", 500),
+            sample_step=training_data.get("sample_step", 5000),
+            checkpoint_step=training_data.get("checkpoint_step", 5000),
+            histogram_step=training_data.get("histogram_step", 2000),
+            mixed_precision=training_data.get("mixed_precision", "fp16"),
+            jvp_use_autograd=training_data.get("jvp_use_autograd", False),
+            n_samples_per_class=training_data.get("n_samples_per_class", 1),
+            sampling_steps=training_data.get("sampling_steps", 5),
+            sample_grid_nrow=training_data.get("sample_grid_nrow", 10),
         )
 
         # Parse model configs
