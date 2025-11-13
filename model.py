@@ -37,16 +37,24 @@ class MeanFlow:
 
         x = self.normalizer.forward(x)
         e = torch.randn_like(x)
-        z = (1 - t) * x + t * e
+
+        # Reshape t and r for broadcasting with image tensors (B, C, H, W)
+        t_ = rearrange(t, "b -> b 1 1 1")
+        r_ = rearrange(r, "b -> b 1 1 1")
+
+        z = (1 - t_) * x + t_ * e
         v = e - x
 
-        v, labels = CFG(cfg_prob=0.0, cfg_scale=0.0, use_cond=self.use_cond)(
-            v, labels, self.model, t, z
-        )
+        v, labels = CFG(
+            cfg_prob=0.0,
+            cfg_scale=0.0,
+            use_cond=self.use_cond,
+            num_classes=self.num_classes,
+        )(v, labels, self.model, t, z)
 
-        u, dudt = self.jvp_fn(self.model, z, t, r, v)
+        u, dudt = self.jvp_fn(self.model, z, t, r, labels, v)
 
-        u_tgt = v - (t - r) * dudt
+        u_tgt = v - (t_ - r_) * dudt
         error = u - stopgrad(u_tgt)
 
         return self.loss_fn(error)

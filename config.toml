@@ -4,7 +4,7 @@ model_config = "B2"  # Options: B4, B2, M2, L2, XL2, XL2_plus
 condition_type = "t_r"  # Options: t_r, t_delta_t
 
 input_size = 32
-batch_size = 48
+batch_size = 4
 n_steps = 20000
 num_workers = 8
 
@@ -24,7 +24,7 @@ histogram_step = 2000         # Log histograms every N steps
 
 # Training settings
 mixed_precision = "fp16"      # Mixed precision mode: fp16, bf16, or no
-jvp_use_autograd = false      # Use autograd for JVP (true) or funtorch (false)
+jvp_use_autograd = true       # Use autograd for JVP (true) or funtorch (false)
 
 # Sampling settings
 n_samples_per_class = 1       # Number of samples per class during evaluation

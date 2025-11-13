@@ -99,16 +99,31 @@ mkdir -p "$LOGDIR"
 
 # Kill any existing tensorboard processes
 echo "Stopping any existing TensorBoard processes..."
-pkill -f tensorboard 2>/dev/null || true
+pkill -f "tensorboard --logdir" 2>/dev/null || true
 sleep 1
+
+# Find tensorboard command
+# First try in virtual environment, then in PATH
+TENSORBOARD_CMD=""
+if [ -f ".venv/bin/tensorboard" ]; then
+    TENSORBOARD_CMD=".venv/bin/tensorboard"
+elif command -v tensorboard &> /dev/null; then
+    TENSORBOARD_CMD="tensorboard"
+else
+    echo "✗ Error: tensorboard command not found!"
+    echo "Please install tensorboard: uv pip install tensorboard"
+    echo "Or activate your virtual environment first"
+    exit 1
+fi
 
 # Start tensorboard in background
 echo "Starting TensorBoard..."
 echo "  Port: $PORT"
 echo "  Log directory: $LOGDIR"
+echo "  Command: $TENSORBOARD_CMD"
 echo ""
 
-nohup tensorboard --logdir=$LOGDIR --host=localhost --port=$PORT > tensorboard.log 2>&1 &
+nohup $TENSORBOARD_CMD --logdir=$LOGDIR --host=0.0.0.0 --port=$PORT > tensorboard.log 2>&1 &
 TB_PID=$!
 
 # Wait a moment and check if it started

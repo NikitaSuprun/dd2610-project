@@ -144,7 +144,7 @@ class TRSampler:
 
         # For a fraction sample_ratio of the batch, randomly selects and force r = t on those
         num_selected = int(self.sample_ratio * batch_size)
-        indices = torch.random.permutation(batch_size)[:num_selected]
+        indices = torch.randperm(batch_size, device=device)[:num_selected]
         r[indices] = t[indices]
 
         return t, r
@@ -155,13 +155,15 @@ class Loss:
         self.gamma = gamma
         self.c = c
 
-    def __call__(self, error: torch.Tensor) -> torch.Tensor:
+    def __call__(self, error: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         # error: (B, ...)
 
         # Per-sample mean squared error over (C ,H, W, ...)
         delta_squared = torch.mean(error**2, dim=tuple(range(1, error.ndim)))  # (B,)
+        mse = delta_squared.mean()  # Simple MSE for logging
         weight = 1 / (delta_squared + self.c).pow(1 - self.gamma)  # (B,)
-        return (stopgrad(weight) * delta_squared).mean()  # scalar
+        weighted_loss = (stopgrad(weight) * delta_squared).mean()  # scalar
+        return weighted_loss, mse
 
 
 class JVP:
@@ -246,11 +248,13 @@ class MeanStdNormalizer(Normalizer):
 
 
 class CFG:
-    def __init__(self, cfg_prob: float, cfg_scale: float, use_cond: bool):
+    def __init__(
+        self, cfg_prob: float, cfg_scale: float, use_cond: bool, num_classes: int = None
+    ):
         self.cfg_prob = cfg_prob
         self.cfg_scale = cfg_scale
         self.use_cond = use_cond
-        self.num_classes = None  # to be set during training
+        self.num_classes = num_classes
 
     def __call__(
         self,
@@ -259,11 +263,11 @@ class CFG:
         model: callable,
         t: float,
         z: torch.tensor,
-    ) -> torch.Tensor:
-        if self.use_cond:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if self.use_cond and self.cfg_prob > 0.0 and self.num_classes is not None:
             uncond = torch.ones_like(label) * self.num_classes
 
-            cfg_mask = torch.rand_like(label.float()) > self.cfg_ratio
+            cfg_mask = torch.rand_like(label.float()) > self.cfg_prob
 
             masked_labels = torch.where(cfg_mask, label, uncond)
 
@@ -273,6 +277,7 @@ class CFG:
                 v_hat = torch.where(cfg_mask.reshape(-1, 1, 1, 1).bool(), v, v_hat)
         else:
             v_hat = v
+            masked_labels = label
         return v_hat, masked_labels
 
 

@@ -137,7 +137,7 @@ trainloader = torch.utils.data.DataLoader(
     shuffle=True,
     num_workers=training_config.num_workers,
     drop_last=True,
-    pin_memory=True,
+    pin_memory=False,
 )
 train_dataloader = cycle(trainloader)
 logger.info(f"Created trainloader with {len(trainloader)} batches")
