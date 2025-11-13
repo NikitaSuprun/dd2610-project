@@ -78,14 +78,13 @@ class Config:
 
         # Parse model configs
         model_configs = {}
-        for key, value in data.items():
-            if key.startswith("model."):
-                model_name = key.replace("model.", "")
+        if "model" in data and isinstance(data["model"], dict):
+            for model_name, model_data in data["model"].items():
                 model_configs[model_name] = ModelConfig(
-                    depth=value.get("depth", 12),
-                    hidden_dim=value.get("hidden_dim", 768),
-                    num_heads=value.get("num_heads", 12),
-                    patch_size=value.get("patch_size", 2),
+                    depth=model_data.get("depth", 12),
+                    hidden_dim=model_data.get("hidden_dim", 768),
+                    num_heads=model_data.get("num_heads", 12),
+                    patch_size=model_data.get("patch_size", 2),
                 )
 
         return {
