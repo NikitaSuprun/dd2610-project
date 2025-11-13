@@ -1,0 +1,61 @@
+[training]
+mode = "debug" # debug or full
+model_config = "B2"  # Options: B4, B2, M2, L2, XL2, XL2_plus
+
+input_size = 32
+batch_size = 48
+n_steps = 20000
+num_workers = 8
+
+learning_rate = 0.0001
+weight_decay = 0.00001
+
+gamma = 0.5
+c = 1.0
+sample_ratio = 0.5
+sampler_type = "uniform"
+
+[training.sample_params]
+low = 0.0
+high = 1.0
+
+# Model architectures
+# depth: number of transformer layers
+# hidden_dim: hidden dimension size
+# num_heads: number of attention heads
+# patch_size: patch size for image tokenization
+[model.B4]
+depth = 12
+hidden_dim = 768
+num_heads = 12
+patch_size = 4
+
+[model.B2]
+depth = 12
+hidden_dim = 768
+num_heads = 12
+patch_size = 2
+
+[model.M2]
+depth = 16
+hidden_dim = 1024
+num_heads = 16
+patch_size = 2
+
+[model.L2]
+depth = 24
+hidden_dim = 1024
+num_heads = 16
+patch_size = 2
+
+[model.XL2]
+depth = 28
+hidden_dim = 1152
+num_heads = 16
+patch_size = 2
+
+[model.XL2_plus]
+depth = 28
+hidden_dim = 1152
+num_heads = 16
+patch_size = 2

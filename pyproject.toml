@@ -13,12 +13,17 @@ authors = [
 keywords = ["flow-matching", "one-step-generative-modeling"]
 dependencies = [
     "torch",
+    "torchvision",
     "numpy",
     "timm",
+    "accelerate",
+    "tqdm",
+    "einops",
 ]
 
 [tool.uv.sources]
 torch = { index = "torch-gpu" }
+torchvision = { index = "torch-gpu" }
 
 [[tool.uv.index]]
 name = "torch-gpu"
@@ -29,11 +34,12 @@ explicit = true
 [tool.uv]
 dev-dependencies = [
     "pre-commit",
-    "ruff>=0.5",
-    "isort>=5.13",
-    "mdformat>=0.7",
-    "mdformat-gfm>=0.3",
-    "mdformat-frontmatter>=2.0",
+    "ruff",
+    "black",
+    "isort",
+    "mdformat",
+    "mdformat-gfm",
+    "mdformat-frontmatter",
 ]
 
 [tool.ruff]

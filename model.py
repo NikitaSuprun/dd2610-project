@@ -1,3 +1,4 @@
+from einops import rearrange
 import torch
 import torch.nn as nn
 
@@ -49,3 +50,44 @@ class MeanFlow:
         error = u - stopgrad(u_tgt)
 
         return self.loss_fn(error)
+
+    @torch.no_grad()
+    def sample_each_class(self, n_per_class, classes=None, sample_steps=5):
+        """
+        Generate samples for each class.
+
+        Args:
+            n_per_class: Number of samples per class
+            classes: List of class indices to generate (default: all classes)
+            sample_steps: Number of sampling steps
+            device: Device to run on (default: 'cuda')
+
+        Returns:
+            Generated images (N, C, H, W) in [0, 1] range
+        """
+        self.model.eval()
+        device = torch.device("cuda")
+
+        if classes is None:
+            c = torch.arange(self.num_classes, device=device).repeat(n_per_class)
+        else:
+            c = torch.tensor(classes, device=device).repeat(n_per_class)
+
+        z = torch.randn(
+            c.shape[0], self.channels, self.image_size, self.image_size, device=device
+        )
+
+        t_vals = torch.linspace(1.0, 0.0, sample_steps + 1, device=device)
+
+        for i in range(sample_steps):
+            t = torch.full((z.size(0),), t_vals[i], device=device)
+            r = torch.full((z.size(0),), t_vals[i + 1], device=device)
+
+            t_ = rearrange(t, "b -> b 1 1 1")
+            r_ = rearrange(r, "b -> b 1 1 1")
+
+            v = self.model(z, t, r, c)
+            z = z - (t_ - r_) * v
+
+        z = self.normalizer.unnorm(z)
+        return z

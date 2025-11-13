@@ -1,7 +1,79 @@
+from dataclasses import dataclass
 from enum import Enum
+import tomllib
 
 import torch
 from torch import nn
+
+
+@dataclass
+class TrainingConfig:
+    mode: str
+    model_config: str
+    input_size: int
+    batch_size: int
+    n_steps: int
+    num_workers: int
+    learning_rate: float
+    weight_decay: float
+    gamma: float
+    c: float
+    sample_ratio: float
+    sampler_type: str
+    sample_params: dict
+
+
+@dataclass
+class ModelConfig:
+    depth: int
+    hidden_dim: int
+    num_heads: int
+    patch_size: int
+
+
+class Config:
+    """Configuration loader for TOML files."""
+
+    @staticmethod
+    def from_toml(filepath: str) -> dict:
+        """Load configuration from TOML file and return as dict."""
+        with open(filepath, "rb") as f:
+            data = tomllib.load(f)
+
+        # Parse training config
+        training_data = data.get("training", {})
+        training_config = TrainingConfig(
+            mode=training_data.get("mode", "debug"),
+            model_config=training_data.get("model_config", "B2"),
+            input_size=training_data.get("input_size", 32),
+            batch_size=training_data.get("batch_size", 48),
+            n_steps=training_data.get("n_steps", 20000),
+            num_workers=training_data.get("num_workers", 8),
+            learning_rate=training_data.get("learning_rate", 0.001),
+            weight_decay=training_data.get("weight_decay", 0.0001),
+            gamma=training_data.get("gamma", 0.5),
+            c=training_data.get("c", 1.0),
+            sample_ratio=training_data.get("sample_ratio", 0.5),
+            sampler_type=training_data.get("sampler_type", "uniform"),
+            sample_params=training_data.get("sample_params", {}),
+        )
+
+        # Parse model configs
+        model_configs = {}
+        for key, value in data.items():
+            if key.startswith("model."):
+                model_name = key.replace("model.", "")
+                model_configs[model_name] = ModelConfig(
+                    depth=value.get("depth", 12),
+                    hidden_dim=value.get("hidden_dim", 768),
+                    num_heads=value.get("num_heads", 12),
+                    patch_size=value.get("patch_size", 2),
+                )
+
+        return {
+            "training": training_config,
+            "model": model_configs,
+        }
 
 
 class ConditionType(str, Enum):
@@ -187,3 +259,9 @@ class CFG:
 
 def stopgrad(x: torch.Tensor) -> torch.Tensor:
     return x.detach()
+
+
+def cycle(iterable):
+    """Infinite dataloader iterator."""
+    while True:
+        yield from iterable
