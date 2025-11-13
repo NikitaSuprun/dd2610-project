@@ -6,10 +6,22 @@ import torch
 from torch import nn
 
 
+class ConditionType(str, Enum):
+    T_R = "t_r"
+    T_DELTA_T = "t_delta_t"
+    # TODO: Potentially add (t, r, t-r) and (t-r) later
+
+
+class SamplerType(str, Enum):
+    UNIFORM = "uniform"
+    LOGNORM = "lognorm"
+
+
 @dataclass
 class TrainingConfig:
     mode: str
     model_config: str
+    condition_type: ConditionType
     input_size: int
     batch_size: int
     n_steps: int
@@ -54,6 +66,7 @@ class Config:
         training_config = TrainingConfig(
             mode=training_data.get("mode", "debug"),
             model_config=training_data.get("model_config", "B2"),
+            condition_type=ConditionType(training_data.get("condition_type", "t_r")),
             input_size=training_data.get("input_size", 32),
             batch_size=training_data.get("batch_size", 48),
             n_steps=training_data.get("n_steps", 20000),
@@ -91,17 +104,6 @@ class Config:
             "training": training_config,
             "model": model_configs,
         }
-
-
-class ConditionType(str, Enum):
-    T_R = "t_r"
-    T_DELTA_T = "t_delta_t"
-    # TODO: Potentially add (t, r, t-r) and (t-r) later
-
-
-class SamplerType(str, Enum):
-    UNIFORM = "uniform"
-    LOGNORM = "lognorm"
 
 
 class TRSampler:

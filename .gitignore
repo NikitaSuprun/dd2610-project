@@ -9,6 +9,13 @@ __pycache__/
 # PDF files
 *.pdf
 
+# Logs, and temporary files
+data/
+logs/
+images/
+models/
+runs/
+
 # Distribution / packaging
 .Python
 build/

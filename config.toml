@@ -1,6 +1,7 @@
 [training]
 mode = "debug" # debug or full
 model_config = "B2"  # Options: B4, B2, M2, L2, XL2, XL2_plus
+condition_type = "t_r"  # Options: t_r, t_delta_t
 
 input_size = 32
 batch_size = 48

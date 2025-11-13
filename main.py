@@ -110,7 +110,7 @@ if training_config.mode == "debug":
         ]
     )
     dataset = torchvision.datasets.MNIST(
-        root="mnist",
+        root=DATA_DIR,
         train=True,
         download=True,
         transform=transform,
@@ -126,7 +126,7 @@ elif training_config.mode == "full":
         ]
     )
     dataset = torchvision.datasets.CIFAR10(
-        root="cifar", train=True, download=True, transform=transform
+        root=DATA_DIR, train=True, download=True, transform=transform
     )
     in_channels = 3
     num_classes = 10
@@ -144,6 +144,7 @@ logger.info(f"Created trainloader with {len(trainloader)} batches")
 
 # Create model using selected configuration
 model = MFDiT(
+    condition=training_config.condition_type,
     input_size=training_config.input_size,
     patch_size=selected_model_config.patch_size,
     in_channels=in_channels,
