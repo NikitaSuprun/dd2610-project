@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  training:
+    build:
+      context: .
+      dockerfile: Dockerfile.training
+    image: meanflow-training:latest
+    container_name: meanflow-training
+
+    # GPU support
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    # Volumes for persistence
+    volumes:
+      - ./logs:/workspace/logs
+      - ./models:/workspace/models
+      - ./images:/workspace/images
+      - ./runs:/workspace/runs
+      - ./data:/workspace/data
+      - ./mnist:/workspace/mnist
+      - ./cifar:/workspace/cifar
+
+    # Environment variables
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - NVIDIA_VISIBLE_DEVICES=all
+
+    # Port mapping for TensorBoard
+    ports:
+      - "6006:6006"
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Keep container running
+    tty: true
+    stdin_open: true
+
+  tensorboard:
+    image: tensorflow/tensorflow:latest
+    container_name: meanflow-tensorboard
+    command: tensorboard --logdir=/workspace/runs --host=0.0.0.0 --port=6006
+
+    volumes:
+      - ./runs:/workspace/runs
+
+    ports:
+      - "6007:6006"
+
+    restart: unless-stopped

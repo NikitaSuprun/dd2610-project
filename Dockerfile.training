@@ -1,0 +1,41 @@
+# CUDA-enabled Docker container for training
+FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    CUDA_HOME=/usr/local/cuda \
+    PATH=/root/.cargo/bin:$PATH
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3-pip \
+    curl \
+    git \
+    wget \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy project files
+COPY pyproject.toml uv.lock ./
+COPY config.toml ./
+COPY *.py ./
+
+# Create necessary directories
+RUN mkdir -p logs models data images runs
+
+# Install Python dependencies with uv
+RUN /root/.cargo/bin/uv sync
+
+# Expose TensorBoard port
+EXPOSE 6006
+
+# Default command: run training
+CMD ["/root/.cargo/bin/uv", "run", "main.py"]
