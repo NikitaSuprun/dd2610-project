@@ -29,7 +29,7 @@ services:
 
     # Environment variables
     environment:
-      - CUDA_VISIBLE_DEVICES=0
+      - CUDA_VISIBLE_DEVICES=0,1
       - NVIDIA_VISIBLE_DEVICES=all
 
     # Port mapping for TensorBoard

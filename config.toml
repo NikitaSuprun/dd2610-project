@@ -4,17 +4,21 @@ model_config = "B2"  # Options: B4, B2, M2, L2, XL2, XL2_plus
 condition_type = "t_r"  # Options: t_r, t_delta_t
 
 input_size = 32
-batch_size = 4
+batch_size = 64
 n_steps = 20000
 num_workers = 8
 
 learning_rate = 0.0001
 weight_decay = 0.00001
 
-gamma = 0.5
-c = 1.0
-sample_ratio = 0.5
-sampler_type = "uniform"
+gamma = 0.0
+c = 0.001
+sample_ratio = 0.25
+sampler_type = "lognorm"
+
+# Classifier-Free Guidance (CFG) settings
+cfg_ratio = 0.1           # Ratio of samples to apply CFG (0.0 = disabled, 0.1 = 10% of batch)
+cfg_scale = 2.0           # CFG scale/strength (0.0 = no guidance)
 
 # Training intervals
 log_step = 500                # Log metrics every N steps
@@ -32,8 +36,8 @@ sampling_steps = 5            # Number of steps for sample generation
 sample_grid_nrow = 10         # Number of columns in sample image grid
 
 [training.sample_params]
-low = 0.0
-high = 1.0
+sigma = 1.0
+mean = -0.4
 
 # Model architectures
 # depth: number of transformer layers

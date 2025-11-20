@@ -85,6 +85,8 @@ hparams = {
     "gamma": training_config.gamma,
     "c": training_config.c,
     "sample_ratio": training_config.sample_ratio,
+    "cfg_ratio": training_config.cfg_ratio,
+    "cfg_scale": training_config.cfg_scale,
 }
 
 # Create data, model, and image directories
@@ -183,6 +185,8 @@ meanflow = MeanFlow(
     channels=in_channels,
     image_size=training_config.input_size,
     num_classes=num_classes,
+    cfg_ratio=training_config.cfg_ratio,
+    cfg_scale=training_config.cfg_scale,
 )
 logger.info("Initialized MeanFlow training wrapper")
 

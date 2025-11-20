@@ -42,6 +42,8 @@ class TrainingConfig:
     n_samples_per_class: int
     sampling_steps: int
     sample_grid_nrow: int
+    cfg_ratio: float
+    cfg_scale: float
 
 
 @dataclass
@@ -87,6 +89,8 @@ class Config:
             n_samples_per_class=training_data.get("n_samples_per_class", 1),
             sampling_steps=training_data.get("sampling_steps", 5),
             sample_grid_nrow=training_data.get("sample_grid_nrow", 10),
+            cfg_ratio=training_data.get("cfg_ratio", 0.0),
+            cfg_scale=training_data.get("cfg_scale", 0.0),
         )
 
         # Parse model configs
@@ -201,84 +205,38 @@ class Normalizer(nn.Module):
 
 
 class MinMaxNormalizer(Normalizer):
-    """Learns per-channel min/max from x and maps to [-1, 1]."""
+    """Maps x from [0, 1] to [-1, 1]."""
 
-    def __init__(self, eps: float = 1e-6):
+    def __init__(self):
         super().__init__()
-        self.eps = eps
-        self.register_buffer("data_min", None)
-        self.register_buffer("data_max", None)
 
-    @torch.no_grad()
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        assert x.ndim >= 2
-        reduce_dims = [i for i in range(x.ndim) if i != 1]
-        self.data_min = x.amin(dim=reduce_dims).view(-1, 1, 1)
-        self.data_max = x.amax(dim=reduce_dims).view(-1, 1, 1)
-
-        scale = (self.data_max - self.data_min).clamp_min(self.eps)
-        x = (x - self.data_min) / scale  # [min,max] --> [0,1]
-        return x * 2.0 - 1.0  # [0, 1] --> [-1,1]
+        """Assumes x is in [0, 1] range (e.g., from ToTensor())."""
+        return x * 2.0 - 1.0  # [0, 1] --> [-1, 1]
 
     def unnorm(self, x: torch.Tensor) -> torch.Tensor:
+        """Maps from [-1, 1] back to [0, 1]."""
         x = x.clamp(-1.0, 1.0)
-        scale = (self.data_max - self.data_min).clamp_min(self.eps)
-        return (x + 1.0) * 0.5 * scale + self.data_min
+        return (x + 1.0) * 0.5  # [-1, 1] --> [0, 1]
 
 
 class MeanStdNormalizer(Normalizer):
-    """Learns per-channel mean/std from x and standardizes."""
+    """Standardizes using fixed mean and std values."""
 
-    def __init__(self, eps: float = 1e-6):
+    def __init__(self, mean=(0.5,), std=(0.5,), eps: float = 1e-6):
         super().__init__()
         self.eps = eps
-        self.register_buffer("mean", None)
-        self.register_buffer("std", None)
+        # Register as buffers so they move with the model to the correct device
+        self.register_buffer("mean", torch.tensor(mean).view(-1, 1, 1))
+        self.register_buffer("std", torch.tensor(std).view(-1, 1, 1))
 
-    @torch.no_grad()
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        assert x.ndim >= 2
-        reduce_dims = [i for i in range(x.ndim) if i != 1]
-        self.mean = x.mean(dim=reduce_dims).view(-1, 1, 1)
-        self.std = x.std(dim=reduce_dims, unbiased=False).view(-1, 1, 1)
-        return (x - self.mean) / self.std.clamp_min(self.eps)
+        """Standardize using fixed mean and std."""
+        return (x - self.mean.to(x.device)) / self.std.to(x.device).clamp_min(self.eps)
 
     def unnorm(self, x: torch.Tensor) -> torch.Tensor:
-        return x * self.std + self.mean
-
-
-class CFG:
-    def __init__(
-        self, cfg_prob: float, cfg_scale: float, use_cond: bool, num_classes: int = None
-    ):
-        self.cfg_prob = cfg_prob
-        self.cfg_scale = cfg_scale
-        self.use_cond = use_cond
-        self.num_classes = num_classes
-
-    def __call__(
-        self,
-        v: torch.Tensor,
-        label: torch.Tensor,
-        model: callable,
-        t: float,
-        z: torch.tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        if self.use_cond and self.cfg_prob > 0.0 and self.num_classes is not None:
-            uncond = torch.ones_like(label) * self.num_classes
-
-            cfg_mask = torch.rand_like(label.float()) > self.cfg_prob
-
-            masked_labels = torch.where(cfg_mask, label, uncond)
-
-            with torch.no_grad():
-                u_t = model(z, t, t, uncond)
-                v_hat = self.cfg_scale * v + (1 - self.cfg_scale) * u_t
-                v_hat = torch.where(cfg_mask.reshape(-1, 1, 1, 1).bool(), v, v_hat)
-        else:
-            v_hat = v
-            masked_labels = label
-        return v_hat, masked_labels
+        """Denormalize using fixed mean and std."""
+        return x * self.std.to(x.device) + self.mean.to(x.device)
 
 
 def stopgrad(x: torch.Tensor) -> torch.Tensor:
