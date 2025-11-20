@@ -77,7 +77,7 @@ hparams = {
     "batch_size": training_config.batch_size,
     "learning_rate": training_config.learning_rate,
     "weight_decay": training_config.weight_decay,
-    "n_steps": training_config.n_steps,
+    "n_epochs": training_config.n_epochs,
     "depth": selected_model_config.depth,
     "hidden_dim": selected_model_config.hidden_dim,
     "num_heads": selected_model_config.num_heads,
@@ -141,8 +141,8 @@ trainloader = torch.utils.data.DataLoader(
     drop_last=True,
     pin_memory=False,
 )
-train_dataloader = cycle(trainloader)
-logger.info(f"Created trainloader with {len(trainloader)} batches")
+logger.info(f"Created trainloader with {len(trainloader)} batches per epoch")
+logger.info(f"Dataset size: {len(dataset)} samples")
 
 # Create model using selected configuration
 model = MFDiT(
@@ -209,17 +209,21 @@ except Exception as e:
     raise e
 
 # Training configuration
-n_steps = training_config.n_steps
+n_epochs = training_config.n_epochs
 log_step = training_config.log_step
-sample_step = training_config.sample_step
-checkpoint_step = training_config.checkpoint_step
+sample_every_n_epochs = training_config.sample_every_n_epochs
+checkpoint_every_n_epochs = training_config.checkpoint_every_n_epochs
 histogram_step = training_config.histogram_step
 
-logger.info(f"Starting training for {n_steps} steps")
+steps_per_epoch = len(trainloader)
+total_steps = n_epochs * steps_per_epoch
+
+logger.info(f"Starting training for {n_epochs} epochs ({total_steps} total steps)")
+logger.info(f"Steps per epoch: {steps_per_epoch}")
 logger.info(f"Batch size: {training_config.batch_size}")
 logger.info(f"Learning rate: {training_config.learning_rate}")
 logger.info(
-    f"Log every {log_step} steps | Samples every {sample_step} steps | Checkpoints every {checkpoint_step} steps"
+    f"Log every {log_step} steps | Samples every {sample_every_n_epochs} epochs | Checkpoints every {checkpoint_every_n_epochs} epochs"
 )
 
 # Training loop
@@ -227,63 +231,73 @@ global_step = 0
 losses = 0.0
 mse_losses = 0.0
 
-with tqdm(range(n_steps), dynamic_ncols=True) as pbar:
-    pbar.set_description("Training")
+for epoch in range(n_epochs):
+    logger.info(f"Starting Epoch {epoch + 1}/{n_epochs}")
     model.train()
+    
+    with tqdm(trainloader, dynamic_ncols=True) as pbar:
+        pbar.set_description(f"Epoch {epoch + 1}/{n_epochs}")
+        
+        for data in pbar:
+            # Get batch
+            x = data[0].to(accelerator.device)
+            c = data[1].to(accelerator.device)
 
-    for step in pbar:
-        # Get batch
-        data = next(train_dataloader)
-        x = data[0].to(accelerator.device)
-        c = data[1].to(accelerator.device)
+            # Forward pass
+            loss, mse_val = meanflow.loss(x, c)
 
-        # Forward pass
-        loss, mse_val = meanflow.loss(x, c)
+            # Backward pass
+            accelerator.backward(loss)
+            optimizer.step()
+            optimizer.zero_grad()
 
-        # Backward pass
-        accelerator.backward(loss)
-        optimizer.step()
-        optimizer.zero_grad()
+            # Update metrics
+            global_step += 1
+            losses += loss.item()
+            mse_losses += mse_val.item()
 
-        # Update metrics
-        global_step += 1
-        losses += loss.item()
-        mse_losses += mse_val.item()
+            # Update progress bar
+            pbar.set_postfix({
+                "loss": f"{loss.item():.4f}", 
+                "mse": f"{mse_val.item():.4f}",
+                "epoch": f"{epoch + 1}/{n_epochs}"
+            })
 
-        # Update progress bar
-        pbar.set_postfix({"loss": f"{loss.item():.4f}", "mse": f"{mse_val.item():.4f}"})
+            # Logging
+            if accelerator.is_main_process and global_step % log_step == 0:
+                avg_loss = losses / log_step
+                avg_mse = mse_losses / log_step
+                lr = optimizer.param_groups[0]["lr"]
 
-        # Logging
-        if accelerator.is_main_process and global_step % log_step == 0:
-            avg_loss = losses / log_step
-            avg_mse = mse_losses / log_step
-            lr = optimizer.param_groups[0]["lr"]
+                logger.info(
+                    f"Epoch {epoch + 1}/{n_epochs} | Step {global_step:6d} | Loss: {avg_loss:.6f} | MSE: {avg_mse:.6f} | LR: {lr:.6f}"
+                )
 
-            logger.info(
-                f"Step {global_step:6d} | Loss: {avg_loss:.6f} | MSE: {avg_mse:.6f} | LR: {lr:.6f}"
-            )
+                # Log to TensorBoard
+                writer.add_scalar("Loss/train", avg_loss, global_step)
+                writer.add_scalar("Loss/mse", avg_mse, global_step)
+                writer.add_scalar("Learning_Rate", lr, global_step)
+                writer.add_scalar("Epoch", epoch + 1, global_step)
 
-            # Log to TensorBoard
-            writer.add_scalar("Loss/train", avg_loss, global_step)
-            writer.add_scalar("Loss/mse", avg_mse, global_step)
-            writer.add_scalar("Learning_Rate", lr, global_step)
+                # Log model parameters and gradients histograms
+                if global_step % histogram_step == 0:
+                    for name, param in model.named_parameters():
+                        if param.requires_grad and param.grad is not None:
+                            writer.add_histogram(
+                                f"Parameters/{name}", param.data, global_step
+                            )
+                            writer.add_histogram(
+                                f"Gradients/{name}", param.grad.data, global_step
+                            )
 
-            # Log model parameters and gradients histograms
-            if global_step % histogram_step == 0:
-                for name, param in model.named_parameters():
-                    if param.requires_grad and param.grad is not None:
-                        writer.add_histogram(
-                            f"Parameters/{name}", param.data, global_step
-                        )
-                        writer.add_histogram(
-                            f"Gradients/{name}", param.grad.data, global_step
-                        )
-
-            losses = 0.0
-            mse_losses = 0.0
-
-        # Generate samples
-        if global_step % sample_step == 0 and accelerator.is_main_process:
+                losses = 0.0
+                mse_losses = 0.0
+    
+    # End of epoch operations
+    if accelerator.is_main_process:
+        # Generate samples at end of epoch
+        if (epoch + 1) % sample_every_n_epochs == 0:
+            logger.info(f"Generating samples at end of epoch {epoch + 1}")
             model.eval()
             model_module = model.module if hasattr(model, "module") else model
 
@@ -293,7 +307,7 @@ with tqdm(range(n_steps), dynamic_ncols=True) as pbar:
                     sample_steps=training_config.sampling_steps,
                 )
                 log_img = make_grid(samples, nrow=training_config.sample_grid_nrow)
-                img_save_path = IMAGE_DIR / f"step_{global_step}.png"
+                img_save_path = IMAGE_DIR / f"epoch_{epoch + 1}.png"
                 save_image(log_img, img_save_path)
                 logger.info(f"Saved samples to {img_save_path}")
 
@@ -303,10 +317,11 @@ with tqdm(range(n_steps), dynamic_ncols=True) as pbar:
             accelerator.wait_for_everyone()
             model.train()
 
-        # Save checkpoints
-        if global_step % checkpoint_step == 0 and accelerator.is_main_process:
+        # Save checkpoints at end of epoch
+        if (epoch + 1) % checkpoint_every_n_epochs == 0:
+            logger.info(f"Saving checkpoint at end of epoch {epoch + 1}")
             model_module = model.module if hasattr(model, "module") else model
-            ckpt_path = MODEL_DIR / f"step_{global_step}.pt"
+            ckpt_path = MODEL_DIR / f"epoch_{epoch + 1}.pt"
             accelerator.save(model_module.state_dict(), ckpt_path)
             logger.info(f"Saved checkpoint to {ckpt_path}")
 
@@ -315,7 +330,7 @@ with tqdm(range(n_steps), dynamic_ncols=True) as pbar:
 # Save final checkpoint
 if accelerator.is_main_process:
     model_module = model.module if hasattr(model, "module") else model
-    ckpt_path = MODEL_DIR / f"final_step_{global_step}.pt"
+    ckpt_path = MODEL_DIR / f"final_epoch_{n_epochs}.pt"
     accelerator.save(model_module.state_dict(), ckpt_path)
     logger.info(f"Saved final checkpoint to {ckpt_path}")
 
@@ -323,6 +338,8 @@ if accelerator.is_main_process:
     final_metrics = {
         "final_loss": avg_loss if "avg_loss" in locals() else 0.0,
         "final_mse": avg_mse if "avg_mse" in locals() else 0.0,
+        "total_steps": global_step,
+        "total_epochs": n_epochs,
     }
     writer.add_hparams(hparams, final_metrics)
 
@@ -330,5 +347,5 @@ if accelerator.is_main_process:
     writer.close()
     logger.info("TensorBoard writer closed")
 
-logger.info("Training completed!")
+logger.info(f"Training completed! Trained for {n_epochs} epochs ({global_step} steps)")
 logger.info("View results with: tensorboard --logdir=runs")

@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from enum import Enum
-import tomllib
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:
+    import tomli as tomllib  # Python 3.10 backport
 
 import torch
 from torch import nn
@@ -24,7 +27,7 @@ class TrainingConfig:
     condition_type: ConditionType
     input_size: int
     batch_size: int
-    n_steps: int
+    n_epochs: int
     num_workers: int
     learning_rate: float
     weight_decay: float
@@ -34,8 +37,8 @@ class TrainingConfig:
     sampler_type: str
     sample_params: dict
     log_step: int
-    sample_step: int
-    checkpoint_step: int
+    sample_every_n_epochs: int
+    checkpoint_every_n_epochs: int
     histogram_step: int
     mixed_precision: str
     jvp_use_autograd: bool
@@ -71,7 +74,7 @@ class Config:
             condition_type=ConditionType(training_data.get("condition_type", "t_r")),
             input_size=training_data.get("input_size", 32),
             batch_size=training_data.get("batch_size", 48),
-            n_steps=training_data.get("n_steps", 20000),
+            n_epochs=training_data.get("n_epochs", 100),
             num_workers=training_data.get("num_workers", 8),
             learning_rate=training_data.get("learning_rate", 0.001),
             weight_decay=training_data.get("weight_decay", 0.0001),
@@ -81,8 +84,8 @@ class Config:
             sampler_type=training_data.get("sampler_type", "uniform"),
             sample_params=training_data.get("sample_params", {}),
             log_step=training_data.get("log_step", 500),
-            sample_step=training_data.get("sample_step", 5000),
-            checkpoint_step=training_data.get("checkpoint_step", 5000),
+            sample_every_n_epochs=training_data.get("sample_every_n_epochs", 5),
+            checkpoint_every_n_epochs=training_data.get("checkpoint_every_n_epochs", 5),
             histogram_step=training_data.get("histogram_step", 2000),
             mixed_precision=training_data.get("mixed_precision", "fp16"),
             jvp_use_autograd=training_data.get("jvp_use_autograd", False),

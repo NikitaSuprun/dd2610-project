@@ -1,15 +1,15 @@
 [training]
 mode = "debug" # debug or full
-model_config = "B2"  # Options: B4, B2, M2, L2, XL2, XL2_plus
+model_config = "B4"  # Options: B4, B2, M2, L2, XL2, XL2_plus
 condition_type = "t_r"  # Options: t_r, t_delta_t
 
 input_size = 32
 batch_size = 64
-n_steps = 20000
+n_epochs = 100  # Number of epochs to train
 num_workers = 0
 
 learning_rate = 0.0001
-weight_decay = 0.00001
+weight_decay = 0.00
 
 gamma = 0.0
 c = 0.001
@@ -20,10 +20,10 @@ sampler_type = "lognorm"
 cfg_ratio = 0.1           # Ratio of samples to apply CFG (0.0 = disabled, 0.1 = 10% of batch)
 cfg_scale = 2.0           # CFG scale/strength (0.0 = no guidance)
 
-# Training intervals
+# Training intervals (in steps)
 log_step = 500                # Log metrics every N steps
-sample_step = 5000            # Generate samples every N steps
-checkpoint_step = 5000        # Save checkpoint every N steps
+sample_every_n_epochs = 5     # Generate samples every N epochs
+checkpoint_every_n_epochs = 5 # Save checkpoint every N epochs
 histogram_step = 2000         # Log histograms every N steps
 
 # Training settings

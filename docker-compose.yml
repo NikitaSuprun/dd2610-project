@@ -14,7 +14,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: all
+              device_ids: ['6', '7']
               capabilities: [gpu]
 
     # Volumes for persistence
@@ -26,11 +26,7 @@ services:
       - ./data:/workspace/data
       - ./mnist:/workspace/mnist
       - ./cifar:/workspace/cifar
-
-    # Environment variables
-    environment:
-      - CUDA_VISIBLE_DEVICES=0,1
-      - NVIDIA_VISIBLE_DEVICES=all
+      - ./.venv:/workspace/.venv
 
     # Port mapping for TensorBoard
     ports:
@@ -42,16 +38,3 @@ services:
     # Keep container running
     tty: true
     stdin_open: true
-
-  tensorboard:
-    image: tensorflow/tensorflow:latest
-    container_name: meanflow-tensorboard
-    command: tensorboard --logdir=/workspace/runs --host=0.0.0.0 --port=6006
-
-    volumes:
-      - ./runs:/workspace/runs
-
-    ports:
-      - "6007:6006"
-
-    restart: unless-stopped

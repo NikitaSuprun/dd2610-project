@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     git \
     wget \
     build-essential \
+    vim \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
@@ -31,11 +32,8 @@ COPY *.py ./
 # Create necessary directories
 RUN mkdir -p logs models data images runs
 
-# Install Python dependencies with uv
-RUN /root/.cargo/bin/uv sync
-
 # Expose TensorBoard port
 EXPOSE 6006
 
 # Default command: run training
-CMD ["/root/.cargo/bin/uv", "run", "main.py"]
+CMD ["/bin/bash"]
