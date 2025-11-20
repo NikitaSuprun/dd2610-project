@@ -12,7 +12,7 @@ learning_rate = 0.0001
 weight_decay = 0.00
 
 gamma = 0.0 # p = 1 - gamma
-c = 0.001
+c = 0.01
 sample_ratio = 0.25
 sampler_type = "lognorm"
 
@@ -27,7 +27,7 @@ checkpoint_every_n_epochs = 5 # Save checkpoint every N epochs
 histogram_step = 2000         # Log histograms every N steps
 
 # Training settings
-mixed_precision = "fp16"      # Mixed precision mode: fp16, bf16, or no
+mixed_precision = "bf16"      # Mixed precision mode: fp16, bf16, or no (bf16 is more stable than fp16)
 jvp_use_autograd = true       # Use autograd for JVP (true) or funtorch (false)
 
 # Sampling settings
