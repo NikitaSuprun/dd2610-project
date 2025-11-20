@@ -43,8 +43,8 @@ class MeanFlow:
         e = torch.randn_like(x)
 
         # Reshape t and r for broadcasting with image tensors (B, C, H, W)
-        t_ = rearrange(t, "b -> b 1 1 1").detach().clone()
-        r_ = rearrange(r, "b -> b 1 1 1").detach().clone()
+        t_ = rearrange(t, "b -> b 1 1 1")
+        r_ = rearrange(r, "b -> b 1 1 1")
 
         z = (1 - t_) * x + t_ * e
         v = e - x
