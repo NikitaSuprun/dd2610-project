@@ -26,16 +26,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.info(f"Logging to file: {log_filename}")
 
-# Set up TensorBoard
-tensorboard_dir = (
-    Path(__file__).parent
-    / "runs"
-    / f"experiment_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-)
-writer = SummaryWriter(log_dir=tensorboard_dir)
-logger.info(f"TensorBoard logging to: {tensorboard_dir}")
-logger.info("Start TensorBoard with: tensorboard --logdir=runs")
-
 # Ensure GPU capability
 if not torch.cuda.is_available():
     raise RuntimeError("CUDA is required for training.")
@@ -59,6 +49,19 @@ logger.info(f"Number of processes: {accelerator.num_processes}")
 logger.info(f"Process index: {accelerator.process_index}")
 logger.info(f"Local process index: {accelerator.local_process_index}")
 logger.info(f"Is main process: {accelerator.is_main_process}")
+
+# Set up TensorBoard (only on main process)
+if accelerator.is_main_process:
+    tensorboard_dir = (
+        Path(__file__).parent
+        / "runs"
+        / f"experiment_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    )
+    writer = SummaryWriter(log_dir=tensorboard_dir)
+    logger.info(f"TensorBoard logging to: {tensorboard_dir}")
+    logger.info("Start TensorBoard with: tensorboard --logdir=runs")
+else:
+    writer = None
 
 logger.info(f"Training configuration: {training_config}")
 logger.info(f"Selected model: {training_config.model_config}")
@@ -192,21 +195,22 @@ logger.info("Initialized MeanFlow training wrapper")
 
 model, optimizer, trainloader = accelerator.prepare(model, optimizer, trainloader)
 
-# Log model graph to TensorBoard
-try:
-    # Create sample input for model graph
-    sample_batch = next(iter(trainloader))
-    sample_x = sample_batch[0][:1].to(accelerator.device)  # Single sample
-    sample_t = torch.rand(1, device=accelerator.device)
-    sample_r = torch.rand(1, device=accelerator.device)
-    sample_c = torch.zeros(1, dtype=torch.long, device=accelerator.device)
+# Log model graph to TensorBoard (only main process)
+if accelerator.is_main_process:
+    try:
+        # Create sample input for model graph
+        sample_batch = next(iter(trainloader))
+        sample_x = sample_batch[0][:1].to(accelerator.device)  # Single sample
+        sample_t = torch.rand(1, device=accelerator.device)
+        sample_r = torch.rand(1, device=accelerator.device)
+        sample_c = torch.zeros(1, dtype=torch.long, device=accelerator.device)
 
-    writer.add_graph(model, (sample_x, sample_t, sample_r, sample_c))
-    logger.info("Model graph logged to TensorBoard")
-except Exception as e:
-    logger.error(f"Could not log model graph: {e}")
-    # Fail the training, as we do not want to continue with a large training without observability
-    raise e
+        writer.add_graph(model, (sample_x, sample_t, sample_r, sample_c))
+        logger.info("Model graph logged to TensorBoard")
+    except Exception as e:
+        logger.error(f"Could not log model graph: {e}")
+        # Fail the training, as we do not want to continue with a large training without observability
+        raise e
 
 # Training configuration
 n_epochs = training_config.n_epochs
@@ -276,29 +280,30 @@ for epoch in range(n_epochs):
                 )
 
                 # Log to TensorBoard
-                writer.add_scalar("Loss/train", avg_loss, global_step)
-                writer.add_scalar("Loss/mse", avg_mse, global_step)
-                writer.add_scalar("Learning_Rate", lr, global_step)
-                writer.add_scalar("Epoch", epoch + 1, global_step)
+                if writer is not None:
+                    writer.add_scalar("Loss/train", avg_loss, global_step)
+                    writer.add_scalar("Loss/mse", avg_mse, global_step)
+                    writer.add_scalar("Learning_Rate", lr, global_step)
+                    writer.add_scalar("Epoch", epoch + 1, global_step)
 
-                # Log model parameters and gradients histograms
-                if global_step % histogram_step == 0:
-                    for name, param in model.named_parameters():
-                        if param.requires_grad and param.grad is not None:
-                            writer.add_histogram(
-                                f"Parameters/{name}", param.data, global_step
-                            )
-                            writer.add_histogram(
-                                f"Gradients/{name}", param.grad.data, global_step
-                            )
+                    # Log model parameters and gradients histograms
+                    if global_step % histogram_step == 0:
+                        for name, param in model.named_parameters():
+                            if param.requires_grad and param.grad is not None:
+                                writer.add_histogram(
+                                    f"Parameters/{name}", param.data, global_step
+                                )
+                                writer.add_histogram(
+                                    f"Gradients/{name}", param.grad.data, global_step
+                                )
 
                 losses = 0.0
                 mse_losses = 0.0
     
     # End of epoch operations
-    if accelerator.is_main_process:
-        # Generate samples at end of epoch
-        if (epoch + 1) % sample_every_n_epochs == 0:
+    # Generate samples at end of epoch
+    if (epoch + 1) % sample_every_n_epochs == 0:
+        if accelerator.is_main_process:
             logger.info(f"Generating samples at end of epoch {epoch + 1}")
             model.eval()
             model_module = model.module if hasattr(model, "module") else model
@@ -314,20 +319,25 @@ for epoch in range(n_epochs):
                 logger.info(f"Saved samples to {img_save_path}")
 
                 # Log images to TensorBoard
-                writer.add_image("Generated_Samples", log_img, global_step)
+                if writer is not None:
+                    writer.add_image("Generated_Samples", log_img, global_step)
 
-            accelerator.wait_for_everyone()
             model.train()
+        
+        # Wait for all processes to sync after sampling
+        accelerator.wait_for_everyone()
 
-        # Save checkpoints at end of epoch
-        if (epoch + 1) % checkpoint_every_n_epochs == 0:
+    # Save checkpoints at end of epoch
+    if (epoch + 1) % checkpoint_every_n_epochs == 0:
+        if accelerator.is_main_process:
             logger.info(f"Saving checkpoint at end of epoch {epoch + 1}")
             model_module = model.module if hasattr(model, "module") else model
             ckpt_path = MODEL_DIR / f"epoch_{epoch + 1}.pt"
             accelerator.save(model_module.state_dict(), ckpt_path)
             logger.info(f"Saved checkpoint to {ckpt_path}")
 
-            accelerator.wait_for_everyone()
+        # Wait for all processes to sync after checkpointing
+        accelerator.wait_for_everyone()
 
 # Save final checkpoint
 if accelerator.is_main_process:
@@ -337,17 +347,21 @@ if accelerator.is_main_process:
     logger.info(f"Saved final checkpoint to {ckpt_path}")
 
     # Log final metrics and hyperparameters
-    final_metrics = {
-        "final_loss": avg_loss if "avg_loss" in locals() else 0.0,
-        "final_mse": avg_mse if "avg_mse" in locals() else 0.0,
-        "total_steps": global_step,
-        "total_epochs": n_epochs,
-    }
-    writer.add_hparams(hparams, final_metrics)
+    if writer is not None:
+        final_metrics = {
+            "final_loss": avg_loss if "avg_loss" in locals() else 0.0,
+            "final_mse": avg_mse if "avg_mse" in locals() else 0.0,
+            "total_steps": global_step,
+            "total_epochs": n_epochs,
+        }
+        writer.add_hparams(hparams, final_metrics)
 
-    # Close TensorBoard writer
-    writer.close()
-    logger.info("TensorBoard writer closed")
+        # Close TensorBoard writer
+        writer.close()
+        logger.info("TensorBoard writer closed")
+
+# Wait for all processes before finishing
+accelerator.wait_for_everyone()
 
 logger.info(f"Training completed! Trained for {n_epochs} epochs ({global_step} steps)")
 logger.info("View results with: tensorboard --logdir=runs")
