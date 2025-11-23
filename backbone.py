@@ -5,6 +5,7 @@ from timm.models.vision_transformer import Attention, Mlp, PatchEmbed
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 
 from utils import ConditionType
 
@@ -62,8 +63,9 @@ class RMSNorm(nn.Module):
 
 
 class DiTBlock(nn.Module):
-    def __init__(self, dim, num_heads, mlp_ratio=4.0):
+    def __init__(self, dim, num_heads, mlp_ratio=4.0, use_checkpoint=False):
         super().__init__()
+        self.use_checkpoint = use_checkpoint
         self.norm1 = RMSNorm(dim)
         self.attn = Attention(
             dim, num_heads=num_heads, qkv_bias=True, qk_norm=True, norm_layer=RMSNorm
@@ -78,7 +80,7 @@ class DiTBlock(nn.Module):
         )
         self.adaLN_modulation = nn.Sequential(nn.SiLU(), nn.Linear(dim, 6 * dim))
 
-    def forward(self, x, c):
+    def _forward_impl(self, x, c):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (
             self.adaLN_modulation(c).chunk(6, dim=-1)
         )
@@ -89,6 +91,12 @@ class DiTBlock(nn.Module):
             modulate(self.norm2(x), scale_mlp, shift_mlp)
         )
         return x
+
+    def forward(self, x, c):
+        if self.use_checkpoint and self.training:
+            return checkpoint(self._forward_impl, x, c, use_reentrant=False)
+        else:
+            return self._forward_impl(x, c)
 
 
 class FinalLayer(nn.Module):
@@ -117,6 +125,7 @@ class MFDiT(nn.Module):
         num_heads=16,
         mlp_ratio=4.0,
         num_classes=1000,
+        use_checkpoint=False,
     ):
         super().__init__()
 
@@ -125,6 +134,7 @@ class MFDiT(nn.Module):
             ConditionType.T_DELTA_T,
         ), f"Condition type {condition} not supported."
         self.condition = condition
+        self.use_checkpoint = use_checkpoint
 
         self.in_channels = in_channels
         self.out_channels = in_channels
@@ -146,7 +156,7 @@ class MFDiT(nn.Module):
         )
 
         self.blocks = nn.ModuleList(
-            [DiTBlock(dim, num_heads, mlp_ratio) for _ in range(depth)]
+            [DiTBlock(dim, num_heads, mlp_ratio, use_checkpoint=use_checkpoint) for _ in range(depth)]
         )
         self.final_layer = FinalLayer(dim, patch_size, self.out_channels)
 

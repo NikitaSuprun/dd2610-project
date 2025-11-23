@@ -39,18 +39,9 @@ logger.info("Start TensorBoard with: tensorboard --logdir=runs")
 # Ensure GPU capability
 if not torch.cuda.is_available():
     raise RuntimeError("CUDA is required for training.")
-device = torch.device("cuda")
 logger.info(f"Using PyTorch version: {torch.__version__}")
-logger.info(f"Using device: {device}")
-logger.info(f"GPU Name: {torch.cuda.get_device_name(0)}")
 logger.info(f"GPU Count: {torch.cuda.device_count()}")
 logger.info(f"CUDA Version: {torch.version.cuda}")
-logger.info(
-    f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB"
-)
-logger.info(
-    f"GPU Compute Capability: {torch.cuda.get_device_properties(0).major}.{torch.cuda.get_device_properties(0).minor}"
-)
 
 # Load configuration
 config_dict = Config.from_toml("config.toml")
@@ -62,6 +53,12 @@ accelerator = Accelerator(mixed_precision=training_config.mixed_precision)
 logger.info(
     f"Initialized Accelerator with mixed_precision={training_config.mixed_precision}"
 )
+logger.info(f"Accelerator device: {accelerator.device}")
+logger.info(f"Distributed training: {accelerator.distributed_type}")
+logger.info(f"Number of processes: {accelerator.num_processes}")
+logger.info(f"Process index: {accelerator.process_index}")
+logger.info(f"Local process index: {accelerator.local_process_index}")
+logger.info(f"Is main process: {accelerator.is_main_process}")
 
 logger.info(f"Training configuration: {training_config}")
 logger.info(f"Selected model: {training_config.model_config}")
@@ -87,6 +84,7 @@ hparams = {
     "sample_ratio": training_config.sample_ratio,
     "cfg_ratio": training_config.cfg_ratio,
     "cfg_scale": training_config.cfg_scale,
+    "use_gradient_checkpointing": training_config.use_gradient_checkpointing,
 }
 
 # Create data, model, and image directories
@@ -139,7 +137,7 @@ trainloader = torch.utils.data.DataLoader(
     shuffle=True,
     num_workers=training_config.num_workers,
     drop_last=True,
-    pin_memory=False,
+    pin_memory=True,  # Enable pin_memory for faster data transfer to GPU
 )
 logger.info(f"Created trainloader with {len(trainloader)} batches per epoch")
 logger.info(f"Dataset size: {len(dataset)} samples")
@@ -154,10 +152,12 @@ model = MFDiT(
     depth=selected_model_config.depth,
     num_heads=selected_model_config.num_heads,
     num_classes=num_classes,
+    use_checkpoint=training_config.use_gradient_checkpointing,
 ).to(accelerator.device)
 logger.info(
     f"Created model with {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M parameters"
 )
+logger.info(f"Gradient checkpointing enabled: {training_config.use_gradient_checkpointing}")
 
 optimizer = torch.optim.AdamW(
     model.parameters(),

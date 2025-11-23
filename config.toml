@@ -29,6 +29,7 @@ histogram_step = 2000         # Log histograms every N steps
 # Training settings
 mixed_precision = "bf16"      # Mixed precision mode: fp16, bf16, or no (bf16 is more stable than fp16)
 jvp_use_autograd = true       # Use autograd for JVP (true) or funtorch (false)
+use_gradient_checkpointing = true  # Enable gradient checkpointing to save memory
 
 # Sampling settings
 n_samples_per_class = 1       # Number of samples per class during evaluation

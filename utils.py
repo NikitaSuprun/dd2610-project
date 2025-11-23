@@ -47,6 +47,7 @@ class TrainingConfig:
     sample_grid_nrow: int
     cfg_ratio: float
     cfg_scale: float
+    use_gradient_checkpointing: bool
 
 
 @dataclass
@@ -94,6 +95,7 @@ class Config:
             sample_grid_nrow=training_data.get("sample_grid_nrow", 10),
             cfg_ratio=training_data.get("cfg_ratio", 0.0),
             cfg_scale=training_data.get("cfg_scale", 0.0),
+            use_gradient_checkpointing=training_data.get("use_gradient_checkpointing", False),
         )
 
         # Parse model configs
