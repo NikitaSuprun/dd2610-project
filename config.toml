@@ -18,7 +18,7 @@ sampler_type = "lognorm"
 
 # Classifier-Free Guidance (CFG) settings
 cfg_ratio = 0.1           # Ratio of samples to apply CFG (0.0 = disabled, 0.1 = 10% of batch)
-cfg_scale = 2.0           # CFG scale/strength (0.0 = no guidance)
+cfg_scale = 2.0           # CFG scale/strength (1.0 = no guidance)
 
 # Training intervals (in steps)
 log_step = 500                # Log metrics every N steps
