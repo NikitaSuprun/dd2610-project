@@ -1,10 +1,10 @@
 [training]
-mode = "debug" # debug or full
+mode = "full" # debug or full
 model_config = "B4"  # Options: B4, B2, M2, L2, XL2, XL2_plus
 condition_type = "t_r"  # Options: t_r, t_delta_t
 
 input_size = 32
-batch_size = 64
+batch_size = 16  # Per-GPU batch size (effective batch size = 16 * 4 GPUs = 64)
 n_epochs = 80  # Number of epochs to train
 num_workers = 0
 
@@ -13,7 +13,7 @@ weight_decay = 0.00
 
 gamma = 0.0 # p = 1 - gamma
 c = 0.01
-sample_ratio = 0.25
+sample_ratio = 0.75
 sampler_type = "lognorm"
 
 # Classifier-Free Guidance (CFG) settings
