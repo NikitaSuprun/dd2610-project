@@ -80,3 +80,10 @@ depth = 28
 hidden_dim = 1152
 num_heads = 16
 patch_size = 2
+
+# Evaluation settings
+[evaluation]
+dataset = "cifar10"           # Dataset to evaluate on: "cifar10" or "mnist"
+num_gen = 50_000              # Total number of generated samples (should be divisible by num_classes)
+gen_batch_per_class = 500     # Number of samples per class per generation iteration (controls memory usage)
+sample_steps = 1              # Number of sampling steps during evaluation
