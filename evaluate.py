@@ -3,11 +3,10 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader
+from torchmetrics.image.fid import FrechetInceptionDistance
 import torchvision
 import torchvision.transforms as transforms
 from tqdm import tqdm
-
-from torchmetrics.image.fid import FrechetInceptionDistance
 
 # project imports
 from backbone import MFDiT
@@ -53,22 +52,21 @@ def compute_fid_for_checkpoint(
     if dataset not in ("cifar10", "mnist"):
         raise ValueError(f"dataset must be 'cifar10' or 'mnist', got '{dataset}'")
 
-
     # Dataset-specific settings
     if dataset == "cifar10":
         if training_config.mode != "full":
             raise ValueError("FID eval on CIFAR10 is meant for mode='full'.")
         in_channels = 3
-        num_classes = 10
-    else:  # mnist
-        if training_config.mode != "mnist":
-            raise ValueError("FID eval on MNIST is meant for mode='mnist'.")
+    elif training_config.mode == "mnist":
         in_channels = 1
-        num_classes = 10
-
+    else:
+        raise ValueError("FID eval on MNIST is meant for mode='mnist'.")
+    num_classes = 10
     image_size = training_config.input_size
 
-    assert num_gen % num_classes == 0, f"num_gen must be divisible by num_classes ({num_classes})."
+    assert (
+        num_gen % num_classes == 0
+    ), f"num_gen must be divisible by num_classes ({num_classes})."
     n_per_class_total = num_gen // num_classes
 
     if sample_steps is None:
@@ -83,30 +81,30 @@ def compute_fid_for_checkpoint(
     )
 
     if dataset == "cifar10":
-        test_dataset = torchvision.datasets.CIFAR10(
+        train_dataset = torchvision.datasets.CIFAR10(
             root="data",
-            train=False,
+            train=True,
             download=True,
             transform=transform,
         )
         dataset_name = "CIFAR-10"
     else:  # mnist
-        test_dataset = torchvision.datasets.MNIST(
+        train_dataset = torchvision.datasets.MNIST(
             root="data",
-            train=False,
+            train=True,
             download=True,
             transform=transform,
         )
+
         dataset_name = "MNIST"
 
     test_loader = DataLoader(
-        test_dataset,
+        train_dataset,
         batch_size=256,
         shuffle=False,
         num_workers=0,
         pin_memory=True,
     )
-
 
     # Build model
     model = MFDiT(
@@ -153,8 +151,6 @@ def compute_fid_for_checkpoint(
     fid_metric = FrechetInceptionDistance(feature=2048, normalize=True)
     fid_metric = fid_metric.to(device)
 
-
-
     print(f"Feeding real {dataset_name} test images to FID metric...")
     for x_real, _ in test_loader:
         x_real = x_real.to(device)
@@ -177,17 +173,19 @@ def compute_fid_for_checkpoint(
             break
         current_n_per_class = min(gen_batch_per_class, remaining_per_class)
 
-        pbar.set_postfix({
-            "iter": f"{it+1}/{iters}",
-            "per_class": current_n_per_class,
-            "images_this_iter": current_n_per_class * num_classes,
-            "generated": generated,
-        })
+        pbar.set_postfix(
+            {
+                "iter": f"{it+1}/{iters}",
+                "per_class": current_n_per_class,
+                "images_this_iter": current_n_per_class * num_classes,
+                "generated": generated,
+            }
+        )
 
         samples = meanflow.sample_each_class(
             n_per_class=current_n_per_class,
             sample_steps=sample_steps,
-            )
+        )
 
         samples = samples.to(device)
         fid_metric.update(samples, real=False)
